@@ -6,7 +6,7 @@ import time
 RADIUS = 20
 
 def create_ball():
-    times = random.randint(1, 7)
+    times = random.randint(1, 15)
     color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
     for i in range(times):
         x = random.randint(RADIUS, 800 - RADIUS)
@@ -17,6 +17,12 @@ def create_ball():
         pygame.draw.circle(screen, (0, 0, 0), (x, y), RADIUS)
         pygame.display.flip()
 
+def checkAmountOfBalls(threads):
+    ball_alive = 0
+    for t in threads:
+        if t.is_alive():
+            ball_alive += 1
+    return ball_alive
 
 
 balls = int(input("enter amount of balls"))
@@ -33,13 +39,20 @@ for i in range(balls):
 
 
 running = True
+alive = balls
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
-    if not any(t.is_alive() for t in threads):
-        running = False
+    balls_alive = checkAmountOfBalls(threads)
+    if alive != balls_alive:
+        alive = balls_alive
+        if alive == 0:
+            running = False
+        else:
+            print(f"balls remaining: {alive}")
+
 
 
 pygame.quit()
