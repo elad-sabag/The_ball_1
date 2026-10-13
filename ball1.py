@@ -1,64 +1,77 @@
+import queue
+
 import pygame
 import threading
 import random
 import time
 
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
 RADIUS = 20
+BLACK = (0, 0, 0)
+MAX_MOVES = 19
+MOVE_DELAY_SECONDS = 0.5
+CREATION_INTERVAL_MS = 700
 
-def create_ball():
-    times = random.randint(1, 10)
+
+def run_ball():
+    moves_count = random.randint(1, MAX_MOVES)
     color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-    for i in range(times):
-        x = random.randint(RADIUS, 800 - RADIUS)
-        y = random.randint(RADIUS, 600 - RADIUS)
+    for _ in range(moves_count):
+        x = random.randint(RADIUS, SCREEN_WIDTH - RADIUS)
+        y = random.randint(RADIUS, SCREEN_HEIGHT - RADIUS)
         pygame.draw.circle(screen, color, (x, y), RADIUS)
         pygame.display.flip()
-        time.sleep(0.5)
-        pygame.draw.circle(screen, (0, 0, 0), (x, y), RADIUS)
+        time.sleep(MOVE_DELAY_SECONDS)
+        pygame.draw.circle(screen, BLACK, (x, y), RADIUS)
         pygame.display.flip()
 
+def run_ball2(q):
+    name = threading.current_thread().name
+    moves_count = random.randint(1, MAX_MOVES)
+    color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+    for _ in range(moves_count):
+        x = random.randint(RADIUS, SCREEN_WIDTH - RADIUS)
+        y = random.randint(RADIUS, SCREEN_HEIGHT - RADIUS)
+        q.put((name, x, y, color))
+        time.sleep(MOVE_DELAY_SECONDS)
 
 
-
-balls = int(input("enter amount of balls"))
+total_balls = int(input("Enter amount of balls: "))
 pygame.init()
-screen = pygame.display.set_mode((800, 600))
-
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 
 threads = []
-threads_closed = []
-ball_num = 1
-balls_alive = 0
+finished_threads = []
+created_count = 0
+active_count = 0
+last_creation_time = 0
 running = True
-last_created = 0
+ball_updates = queue.Queue()
+
 
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
-    now = pygame.time.get_ticks()
-    if ball_num <= balls and now - last_created >= 700:
-        t = threading.Thread(target=create_ball, daemon=True)
-        t.start()
-        balls_alive += 1
-        print(f"[{t.name}] Ball created")
-        threads.append(t)
-        last_created = now
-        ball_num += 1
+    # current_time = pygame.time.get_ticks()
+    if created_count < total_balls: #and current_time - last_creation_time >= CREATION_INTERVAL_MS:
+        thread = threading.Thread(target=run_ball, daemon=True).start()
+        threads.append(thread)
+        created_count += 1
+        active_count += 1
+        # last_creation_time = current_time
+        print(f"[{thread.name}] Ball created")
 
+    for thread in threads:
+        if not thread.is_alive() and thread not in finished_threads:
+            finished_threads.append(thread)
+            active_count -= 1
+            print(f"[{thread.name}] Ball finished")
+            print(f"Active balls: {active_count}")
 
-    for t in threads:
-        if not t.is_alive() and t not in threads_closed:
-            balls_alive -= 1
-            threads_closed.append(t)
-            print(f"[{t.name}] Ball finished")
-            print(f"balls remaining: {balls_alive}")
-        if balls_alive == 0 and ball_num - 1 == balls:
-            running = False
-
-
-
-
+    if created_count == total_balls and active_count == 0:
+        running = False
 
 pygame.quit()
