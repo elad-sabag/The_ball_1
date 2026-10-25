@@ -1,77 +1,76 @@
-import queue
-
 import pygame
 import threading
 import random
 import time
 
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
+import queue
+
 RADIUS = 20
-BLACK = (0, 0, 0)
-MAX_MOVES = 19
-MOVE_DELAY_SECONDS = 0.5
-CREATION_INTERVAL_MS = 700
 
+def create_ball(qBalls):
+    """
+    Thread worker for a single ball: moves it to random places on the screen.
 
-def run_ball():
-    moves_count = random.randint(1, MAX_MOVES)
+    :param qBalls: queue shared with the main thread, used to send draw/erase requests
+    :return: None
+    """
+    times = random.randint(1, 17)
     color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-    for _ in range(moves_count):
-        x = random.randint(RADIUS, SCREEN_WIDTH - RADIUS)
-        y = random.randint(RADIUS, SCREEN_HEIGHT - RADIUS)
-        pygame.draw.circle(screen, color, (x, y), RADIUS)
-        pygame.display.flip()
-        time.sleep(MOVE_DELAY_SECONDS)
-        pygame.draw.circle(screen, BLACK, (x, y), RADIUS)
-        pygame.display.flip()
-
-def run_ball2(q):
-    name = threading.current_thread().name
-    moves_count = random.randint(1, MAX_MOVES)
-    color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-    for _ in range(moves_count):
-        x = random.randint(RADIUS, SCREEN_WIDTH - RADIUS)
-        y = random.randint(RADIUS, SCREEN_HEIGHT - RADIUS)
-        q.put((name, x, y, color))
-        time.sleep(MOVE_DELAY_SECONDS)
+    for i in range(times):
+        x = random.randint(RADIUS, 800 - RADIUS)
+        y = random.randint(RADIUS, 600 - RADIUS)
+        qBalls.put((x, y, color))
+        time.sleep(0.5)
+        qBalls.put((x, y, 0))
 
 
-total_balls = int(input("Enter amount of balls: "))
+
+
+
+
+balls = int(input("enter amount of balls: "))
 pygame.init()
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+screen = pygame.display.set_mode((800, 600))
+
 
 threads = []
-finished_threads = []
-created_count = 0
-active_count = 0
-last_creation_time = 0
-running = True
-ball_updates = queue.Queue()
+threads_closed = []
+balls_alive = balls
+qBalls = queue.Queue()
 
+created_ball = 0
+
+running = True
 
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
-    # current_time = pygame.time.get_ticks()
-    if created_count < total_balls: #and current_time - last_creation_time >= CREATION_INTERVAL_MS:
-        thread = threading.Thread(target=run_ball, daemon=True).start()
-        threads.append(thread)
-        created_count += 1
-        active_count += 1
-        # last_creation_time = current_time
-        print(f"[{thread.name}] Ball created")
+    if created_ball < balls:
+        t = threading.Thread(target=create_ball, daemon=True, args=(qBalls,))
+        t.start()
+        threads.append(t)
+        print(f"[{t.name}] Ball created")
+        created_ball += 1
 
-    for thread in threads:
-        if not thread.is_alive() and thread not in finished_threads:
-            finished_threads.append(thread)
-            active_count -= 1
-            print(f"[{thread.name}] Ball finished")
-            print(f"Active balls: {active_count}")
 
-    if created_count == total_balls and active_count == 0:
+    if not qBalls.empty():
+        x, y, color = qBalls.get()
+        pygame.draw.circle(screen, color, (x, y), RADIUS)
+        pygame.display.flip()
+
+
+    for t in threads:
+        if not t.is_alive() and t not in threads_closed and created_ball >= balls:
+            balls_alive -= 1
+            threads_closed.append(t)
+            print(f"[{t.name}] Ball finished")
+            print(f"there are {balls_alive} balls alive")
+
+    if balls_alive == 0:
         running = False
+
+
 
 pygame.quit()
